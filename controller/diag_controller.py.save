@@ -1,0 +1,86 @@
+	import json, time
+import networkx as nx
+from ryu.base import app_manager
+from ryu.controller import ofp_event
+from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
+from ryu.ofproto import ofproto_v1_3
+from ryu.lib import hub
+from ryu.lib.packet import packet, ethernet, arp, ipv4, ether_types
+from ryu.topology import event
+from ryu.topology.api import get_switch, get_link
+from ryu.app.wsgi import ControllerBase, WSGIApplication, route, Response
+
+CAPACITY_MBPS = 10          # link bandwidth set in the topology
+CONGESTION_UTIL = 0.8       # >80% utilisation = congested
+LOSS_THRESHOLD_PCT = 20     # reported loss above this = degraded path
+RTT_THRESHOLD_MS = 120      # reported RTT above this = degraded path
+DEGRADE_HOLD_S = 30         # how long a path stays marked degraded
+
+
+class DiagController(app_manager.RyuApp):
+    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
+    _CONTEXTS = {'wsgi': WSGIApplication}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dps = {}              # dpid -> datapath object
+        self.switch_ports = {}     # dpid -> [port numbers]
+        self.graph = nx.Graph()    # LIVE topology (links that are up)
+        self.full_graph = nx.Graph()   # every link ever seen (so we can list failed paths)
+        self.link_ports = {}       # (a, b) -> port on switch a that leads to switch b (live)
+        self.all_link_ports = {}   # same, but never forgets
+        self.hosts = {}            # ip -> {'mac', 'dpid', 'port'}
+        self.flows = {}            # (ip_a, ip_b) sorted -> {'path': [...], 'pinned': None|path_id}
+        self.metrics = {}          # path_id -> last report from the probe client
+        self.degraded = {}         # path_id -> time it was marked degraded
+        self.port_rate = {}        # (dpid, port) -> {'tx_mbps', 'rx_mbps', ...}
+        self._last_stats = {}
+        self.events = []           # event log (used for timing the recovery)
+        self.dynamic = True        # False = static baseline (no automatic rerouting)
+        kwargs['wsgi'].register(DiagRest, {'app': self})
+        hub.spawn(self._monitor)
+
+    # ---------- helpers ----------
+    def log_event(self, kind, **info):
+        self.events.append({'time': time.time(), 'event': kind, **info})
+        self.logger.info('%s %s', kind, info)
+
+    @staticmethod
+    def pid(path):
+        """Path id such as 's1-s2-s4'. Same id whichever direction you read the path."""
+        p = path if path <= path[::-1] else path[::-1]
+        return '-'.join('s%d' % d for d in p)
+
+    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
+    def features_handler(self, ev):
+        dp = ev.msg.datapath
+        p, o = dp.ofproto_parser, dp.ofproto
+        self.dps[dp.id] = dp
+        # table-miss: anything without a rule goes to the controller
+        self.add_flow(dp, 0, p.OFPMatch(), [p.OFPActionOutput(o.OFPP_CONTROLLER, o.OFPCML_NO_BUFFER)])
+
+    def add_flow(self, dp, priority, match, actions):
+        p, o = dp.ofproto_parser, dp.ofproto
+        inst = [p.OFPInstructionActions(o.OFPIT_APPLY_ACTIONS, actions)]
+        dp.send_msg(p.OFPFlowMod(datapath=dp, priority=priority, match=match, instructions=inst))
+
+    def delete_flow(self, dp, match):
+        p, o = dp.ofproto_parser, dp.ofproto
+        dp.send_msg(p.OFPFlowMod(datapath=dp, command=o.OFPFC_DELETE,
+                                 out_port=o.OFPP_ANY, out_group=o.OFPG_ANY, match=match))
+
+    def packet_out(self, dp, port, data):
+        p, o = dp.ofproto_parser, dp.ofproto
+        dp.send_msg(p.OFPPacketOut(datapath=dp, buffer_id=o.OFP_NO_BUFFER, in_port=o.OFPP_CONTROLLER,
+                                   actions=[p.OFPActionOutput(port)], data=data))
+
+
+class DiagRest(ControllerBase):
+    def __init__(self, req, link, data, **config):
+        super().__init__(req, link, data, **config)
+        self.app = data['app']
+
+    def _json(self, obj):
+        return Response(content_type='application/json', body=json.dumps(obj).encode())
+
+    # routes get added here, one requirement at a time

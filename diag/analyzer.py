@@ -183,7 +183,7 @@ def exp_congestion(net):
         start_load(net, mbps=20, secs=25)
 
     recs, rows = run_windows(net, windows=25, faults=[(5, load)])
-    print('CONGESTION:', aggregate(recs), 'path changes:', sum(r['path_changed'] for r in recs))
+    print('CONGESTION:', aggregate(recs), 'path changes:', sum(1 for a, b in zip(recs, recs[1:]) if a['path'] != b['path']))
     tag = 'static' if '--static' in sys.argv else 'dynamic'
     plot(rows, marks, f'Congestion on path A ({tag})', os.path.join(RESULTS, f'congestion_{tag}.png'))
     save_csv(recs, os.path.join(RESULTS, f'congestion_{tag}_windows.csv'))

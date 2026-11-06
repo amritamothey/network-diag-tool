@@ -1,0 +1,12 @@
+failure |FAILURE RESULT: {'outage_s': 0.5, 'lost_probes': 5, 'detect_s': 0.008, 'reroute_s': 0.009}
+failure --static|FAILURE RESULT: {'outage_s': 14.17, 'lost_probes': 28, 'detect_s': 0.012, 'reroute_s': None}
+congestion |CONGESTION: {'sent': 500, 'loss_pct': 7.8, 'rtt_avg': 59.41, 'rtt_max': 322.17, 'jitter': 3.55} path changes: 2
+congestion --static|CONGESTION: {'sent': 500, 'loss_pct': 10.4, 'rtt_avg': 28.06, 'rtt_max': 316.99, 'jitter': 5.61} path changes: 0
+failure |FAILURE RESULT: {'outage_s': 0.51, 'lost_probes': 4, 'detect_s': 0.009, 'reroute_s': 0.01}
+failure --static|FAILURE RESULT: {'outage_s': 13.65, 'lost_probes': 27, 'detect_s': 0.01, 'reroute_s': None}
+congestion |CONGESTION: {'sent': 500, 'loss_pct': 6.8, 'rtt_avg': 62.86, 'rtt_max': 339.71, 'jitter': 4.25} path changes: 2
+congestion --static|CONGESTION: {'sent': 500, 'loss_pct': 10.6, 'rtt_avg': 29.32, 'rtt_max': 488.98, 'jitter': 6.43} path changes: 0
+failure |FAILURE RESULT: {'outage_s': 0.51, 'lost_probes': 3, 'detect_s': 0.008, 'reroute_s': 0.014}
+failure --static|FAILURE RESULT: {'outage_s': 13.71, 'lost_probes': 27, 'detect_s': 0.008, 'reroute_s': None}
+congestion |CONGESTION: {'sent': 500, 'loss_pct': 6.4, 'rtt_avg': 57.85, 'rtt_max': 7139.13, 'jitter': 46.36} path changes: 2
+congestion --static|CONGESTION: {'sent': 500, 'loss_pct': 10.2, 'rtt_avg': 26.96, 'rtt_max': 352.13, 'jitter': 5.45} path changes: 0

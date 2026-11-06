@@ -1,0 +1,5 @@
+condition,jitter,loss_pct,path,rtt_avg,rtt_max,sent
+idle,3.09,0.0,s1-s2-s4,25.35,41.23,240
+idle,3.37,4.58,s1-s3-s4,85.72,111.22,240
+loaded,8.5,30.42,s1-s2-s4,28.71,460.49,240
+loaded,5.51,2.5,s1-s3-s4,87.22,227.68,240
